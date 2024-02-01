@@ -8,7 +8,7 @@ struct cmd_name_t {
    char cmd[16];
 };
 
-const char my_exe_name[ 16 ] = "hello.sched_swit"
+const char my_exe_name[ 16 ] = "hello.sched_swit";
 
 BPF_HASH(switch_table, u32, struct cmd_name_t);
 
