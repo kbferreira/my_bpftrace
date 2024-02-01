@@ -12,7 +12,7 @@ struct cmd_name_t {
 
 const char my_exe_name[ 16 ] = "hello.sched_swit";
 
-BPF_HASH(switch_table, u32, struct cmd_name_t);
+BPF_HASH( switch_table, u32, u32 );
 
 BPF_PERF_OUTPUT(output); 
 
