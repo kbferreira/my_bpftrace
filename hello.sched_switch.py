@@ -4,7 +4,7 @@ from bcc import BPF
 import ctypes as ct
 
 program = r"""
-#include <string.h>
+#include <linux/string.h>
 
 struct cmd_name_t {
    char cmd[16];
