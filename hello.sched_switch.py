@@ -4,6 +4,8 @@ from bcc import BPF
 import ctypes as ct
 
 program = r"""
+#include <string.h>
+
 struct cmd_name_t {
    char cmd[16];
 };
@@ -31,9 +33,9 @@ int hello(void *ctx) {
    struct data_t *data; 
    //struct user_msg_t *p;
    char message[12] = "Hello World";
-   u64 uid;
-   u64 *p;
-   u64 counter = 0;
+   u32 uid;
+   u32 *p;
+   u32 counter = 0;
 
    if( ctx != NULL)
       data = (struct data_t *) ctx;
