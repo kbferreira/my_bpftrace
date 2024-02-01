@@ -33,7 +33,7 @@ int hello(void *ctx) {
    if( ctx != NULL)
       data = (struct data_t *) ctx;
         
-   bpf_trace_printk("sched_switch(): Hello World!");
+   bpf_trace_printk("sched_switch(): old: %s, new: %s\n", data->prev_comm, data->next_comm );
    return 0;
 }
 """
