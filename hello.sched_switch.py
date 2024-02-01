@@ -26,12 +26,12 @@ struct data_t {
 };
 
 int hello(void *ctx) {
-   struct data_t data = {}; 
+   struct data_t *data = {}; 
    struct user_msg_t *p;
    char message[12] = "Hello World";
 
    if( ctx != NULL)
-      data = ctx
+      data = (struct data_t *) ctx;
         
    bpf_trace_printk("sched_switch(): Hello World!");
    return 0;
