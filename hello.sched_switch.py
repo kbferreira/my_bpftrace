@@ -10,6 +10,8 @@ struct cmd_name_t {
    char cmd[16];
 };
 
+my_pid = 0x14 /* FIXME: this needs correction */
+
 const char my_exe_name[ 16 ] = "hello.sched_swit";
 
 BPF_HASH(switch_table, u32, u32);
@@ -52,7 +54,7 @@ int lookat_switch(void *ctx) {
       data = (struct data_t *) ctx;
    }
 
-   if( strncmp( data->prev_comm, my_exe_name, 16 ) == 0 ){
+   if( data->prev_pid == my_pid ){
         bpf_trace_printk("sched_switch(): next: %s\n",
                         data->next_comm );
 
