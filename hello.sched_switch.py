@@ -10,7 +10,7 @@ struct cmd_name_t {
    char cmd[16];
 };
 
-my_pid = 0x14 /* FIXME: this needs correction */
+u32 my_pid = 0x14 /* FIXME: this needs correction */
 
 const char my_exe_name[ 16 ] = "hello.sched_swit";
 
