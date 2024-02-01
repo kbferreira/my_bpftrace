@@ -14,8 +14,6 @@ const char my_exe_name[ 16 ] = "hello.sched_swit";
 
 BPF_HASH(switch_table, u32, u32);
 
-BPF_PERF_OUTPUT(output); 
-
 
 struct data_t {
         unsigned long long pad;
@@ -31,7 +29,21 @@ struct data_t {
 
 int hello(void *ctx) {
    struct data_t *data; 
-   //struct user_msg_t *p;
+   char message[12] = "Hello World";
+   u32 uid;
+   u32 *p;
+   u32 counter = 0;
+
+   if( ctx != NULL){
+      data = (struct data_t *) ctx;
+   }
+   bpf_trace_printk("sched_switch(): old: %s, new: %s\n",
+                        data->prev_comm, data->next_comm );
+   return 0;
+}
+
+int hash_switch(void *ctx) {
+   struct data_t *data; 
    char message[12] = "Hello World";
    u32 uid;
    u32 *p;
