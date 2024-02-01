@@ -54,7 +54,7 @@ int lookat_switch(void *ctx) {
       data = (struct data_t *) ctx;
    }
 
-   if( data->prev_pid == my_pid ){
+   if( 1 ){
         bpf_trace_printk("sched_switch(): next: %s\n",
                         data->next_comm );
 
