@@ -42,8 +42,7 @@ int hello(void *ctx) {
    return 0;
 }
 
-SEC( "tracepoint" )
-int hash_switch(void *ctx) {
+int lookat_switch(void *ctx) {
    struct data_t *data; 
    u32 uid;
    u32 *p;
@@ -74,6 +73,6 @@ int hash_switch(void *ctx) {
 
 bpf_ctx = BPF( text = program )
 bpf_ctx.attach_tracepoint( tp ="sched:sched_switch",
-                      fn_name = "hash_switch" )
+                      fn_name = "lookat_switch" )
 
 bpf_ctx.trace_print();
