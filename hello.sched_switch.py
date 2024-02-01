@@ -30,6 +30,9 @@ int hello(void *ctx) {
    struct user_msg_t *p;
    char message[12] = "Hello World";
 
+   if( ctx != NULL)
+      data = ctx
+        
    bpf_trace_printk("sched_switch(): Hello World!");
    return 0;
 }
@@ -37,6 +40,6 @@ int hello(void *ctx) {
 
 bpf_ctx = BPF( text = program )
 bpf_ctx .attach_tracepoint( tp ="sched:sched_switch",
-                      fn_name = "hello  " )
+                      fn_name = "hello" )
 
 bpf_ctx.trace_print()
