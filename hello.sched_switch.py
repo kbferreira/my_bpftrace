@@ -12,11 +12,11 @@ struct cmd_name_t {
 
 const char my_exe_name[ 16 ] = "hello.sched_swit";
 
-BPF_HASH( switch_table, u32, u32 );
+BPF_HASH(switch_table, u32, u32);
 
 BPF_PERF_OUTPUT(output); 
 
-        
+
 struct data_t {
         unsigned long long pad;
         char prev_comm[16];
@@ -53,7 +53,7 @@ int hello(void *ctx) {
         }
         counter++;
         switch_table.update( &uid, &counter );
-
+   }
    return 0;
 }
 """
