@@ -54,6 +54,7 @@ int hello(void *ctx) {
         counter++;
         switch_table.update( &uid, &counter );
    }
+
    return 0;
 }
 """
