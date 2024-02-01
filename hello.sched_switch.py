@@ -42,9 +42,9 @@ int hello(void *ctx) {
    return 0;
 }
 
+SEC( "tracepoint" )
 int hash_switch(void *ctx) {
    struct data_t *data; 
-   char message[12] = "Hello World";
    u32 uid;
    u32 *p;
    u32 counter = 0;
