@@ -37,8 +37,9 @@ int hello(void *ctx) {
    u32 *p;
    u32 counter = 0;
 
-   if( ctx != NULL)
+   if( ctx != NULL){
       data = (struct data_t *) ctx;
+   }
         
    if( strncmp( data->prev_comm, my_exe_name, 16 ) == 0 ){
         bpf_trace_printk("sched_switch(): old: %s, new: %s\n",
