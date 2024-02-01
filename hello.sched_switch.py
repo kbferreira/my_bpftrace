@@ -73,7 +73,7 @@ int hash_switch(void *ctx) {
 """
 
 bpf_ctx = BPF( text = program )
-bpf_ctx .attach_tracepoint( tp ="sched:sched_switch",
+bpf_ctx.attach_tracepoint( tp ="sched:sched_switch",
                       fn_name = "hash_switch" )
 
 bpf_ctx.trace_print();
