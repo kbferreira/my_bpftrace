@@ -30,7 +30,7 @@ int hello(void *ctx) {
    struct user_msg_t *p;
    char message[12] = "Hello World";
 
-   bpf_trace_printk("sched_switch(): Hello World!")
+   bpf_trace_printk("sched_switch(): Hello World!");
    return 0;
 }
 """
