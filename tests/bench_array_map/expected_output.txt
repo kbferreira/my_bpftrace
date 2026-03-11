@@ -1,0 +1,50 @@
+Expected JSON schema and example output for bench_array_map.py
+==============================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":              string  -- always "bench_array_map"
+  "transport":              string  -- always "BPF_ARRAY"
+  "poll_count":             integer -- number of array reads performed
+  "total_increments":       integer -- final counter value (total sched_switch events)
+  "mean_read_latency_us":   float   -- mean time for a single array[0] read (µs)
+  "p50_read_latency_us":    float   -- 50th-percentile read latency (µs)
+  "p95_read_latency_us":    float   -- 95th-percentile read latency (µs)
+  "p99_read_latency_us":    float   -- 99th-percentile read latency (µs)
+  "stdev_read_latency_us":  float   -- standard deviation of read latency (µs)
+  "min_read_latency_us":    float   -- minimum read latency (µs)
+  "max_read_latency_us":    float   -- maximum read latency (µs)
+  "increment_rate_per_sec": float   -- context-switch rate observed during the run
+  "elapsed_sec":            float   -- actual wall-clock duration of the run
+}
+
+Realistic example output (Linux 5.15, busy system, 5-second run)
+-----------------------------------------------------------------
+{
+  "benchmark":              "bench_array_map",
+  "transport":              "BPF_ARRAY",
+  "poll_count":             4971,
+  "total_increments":       287332,
+  "mean_read_latency_us":   3.21,
+  "p50_read_latency_us":    2.9,
+  "p95_read_latency_us":    6.1,
+  "p99_read_latency_us":    9.4,
+  "stdev_read_latency_us":  1.87,
+  "min_read_latency_us":    1.2,
+  "max_read_latency_us":    312.4,
+  "increment_rate_per_sec": 57466.4,
+  "elapsed_sec":            5.0012
+}
+
+Notes
+-----
+- BPF_ARRAY read latency (mean ~3 µs) is typically much lower than BPF_HASH
+  (mean ~40 µs for a map with many entries) because a single array lookup
+  requires only one bpf(BPF_MAP_LOOKUP_ELEM) syscall with O(1) memory access.
+- increment_rate_per_sec reflects the kernel's context-switch rate during the
+  run; this varies greatly with system load.
+- total_increments is the authoritative final counter; poll_count reflects the
+  number of times userspace successfully read before the deadline.
+- High max_read_latency_us spikes indicate OS scheduler preemption during the
+  syscall — expected occasionally on a non-RT kernel.

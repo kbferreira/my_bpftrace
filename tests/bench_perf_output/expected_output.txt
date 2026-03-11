@@ -1,0 +1,45 @@
+Expected JSON schema and example output for bench_perf_output.py
+==================================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":      string   -- always "bench_perf_output"
+  "transport":      string   -- always "BPF_PERF_OUTPUT"
+  "count":          integer  -- number of valid latency samples collected
+  "mean_ns":        float    -- arithmetic mean end-to-end latency (nanoseconds)
+  "p50_ns":         float    -- 50th-percentile latency (nanoseconds)
+  "p95_ns":         float    -- 95th-percentile latency (nanoseconds)
+  "p99_ns":         float    -- 99th-percentile latency (nanoseconds)
+  "stdev_ns":       float    -- population standard deviation (nanoseconds)
+  "min_ns":         float    -- minimum observed latency (nanoseconds)
+  "max_ns":         float    -- maximum observed latency (nanoseconds)
+  "events_per_sec": float    -- throughput: events delivered per second
+  "elapsed_sec":    float    -- total wall-clock time for the run (seconds)
+}
+
+Realistic example output (Linux 5.15, Intel Core i7, lightly loaded)
+---------------------------------------------------------------------
+{
+  "benchmark":      "bench_perf_output",
+  "transport":      "BPF_PERF_OUTPUT",
+  "count":          10000,
+  "mean_ns":        4821.34,
+  "p50_ns":         4512.0,
+  "p95_ns":         8903.0,
+  "p99_ns":         14201.0,
+  "stdev_ns":       2341.17,
+  "min_ns":         1102.0,
+  "max_ns":         98432.0,
+  "events_per_sec": 187432.11,
+  "elapsed_sec":    0.0533
+}
+
+Notes
+-----
+- Latencies are measured from bpf_ktime_get_ns() in the kernel probe to
+  time.monotonic_ns() at the start of the Python perf-buffer callback.
+- High p99 vs mean ratio indicates occasional scheduling jitter or ring-buffer
+  back-pressure; run on an idle system for cleaner results.
+- events_per_sec reflects the combined cost of: syscall overhead, kprobe
+  dispatch, perf_submit, ring-buffer copy, poll wakeup, and Python callback.

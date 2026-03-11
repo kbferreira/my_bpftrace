@@ -1,0 +1,61 @@
+Expected JSON schema and example output for bench_ringbuf.py
+=============================================================
+
+JSON Schema (keys and types)
+-----------------------------
+Normal run (kernel >= 5.8):
+{
+  "benchmark":      string   -- always "bench_ringbuf"
+  "transport":      string   -- always "BPF_RINGBUF"
+  "count":          integer  -- number of valid latency samples collected
+  "mean_ns":        float    -- arithmetic mean end-to-end latency (nanoseconds)
+  "p50_ns":         float    -- 50th-percentile latency (nanoseconds)
+  "p95_ns":         float    -- 95th-percentile latency (nanoseconds)
+  "p99_ns":         float    -- 99th-percentile latency (nanoseconds)
+  "stdev_ns":       float    -- population standard deviation (nanoseconds)
+  "min_ns":         float    -- minimum observed latency (nanoseconds)
+  "max_ns":         float    -- maximum observed latency (nanoseconds)
+  "events_per_sec": float    -- throughput: events delivered per second
+  "elapsed_sec":    float    -- total wall-clock time for the run (seconds)
+}
+
+Graceful skip (kernel < 5.8):
+{
+  "benchmark": string   -- "bench_ringbuf"
+  "transport": string   -- "BPF_RINGBUF"
+  "skipped":   boolean  -- true
+  "reason":    string   -- human-readable explanation
+}
+
+Realistic example output (Linux 5.15, Intel Core i7, lightly loaded)
+---------------------------------------------------------------------
+{
+  "benchmark":      "bench_ringbuf",
+  "transport":      "BPF_RINGBUF",
+  "count":          10000,
+  "mean_ns":        3912.55,
+  "p50_ns":         3701.0,
+  "p95_ns":         6892.0,
+  "p99_ns":         11043.0,
+  "stdev_ns":       1876.32,
+  "min_ns":         987.0,
+  "max_ns":         74321.0,
+  "events_per_sec": 231017.84,
+  "elapsed_sec":    0.0433
+}
+
+Example skip output (kernel 4.19):
+{
+  "benchmark": "bench_ringbuf",
+  "transport": "BPF_RINGBUF",
+  "skipped":   true,
+  "reason":    "Kernel 4.19 < 5.8 — BPF_RINGBUF not available"
+}
+
+Notes
+-----
+- BPF_RINGBUF is a single shared ring buffer (not per-CPU like BPF_PERF_OUTPUT).
+  It typically shows lower latency and higher throughput because it avoids
+  per-CPU memory fragmentation and provides in-order delivery.
+- Compare mean_ns and p99_ns directly with bench_perf_output results.
+- Requires Linux kernel >= 5.8 and BCC built against that kernel.

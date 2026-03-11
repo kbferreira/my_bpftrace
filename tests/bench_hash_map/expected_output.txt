@@ -1,0 +1,50 @@
+Expected JSON schema and example output for bench_hash_map.py
+==============================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":             string  -- always "bench_hash_map"
+  "transport":             string  -- always "BPF_HASH"
+  "poll_count":            integer -- number of map polls (iterations) performed
+  "total_events_read":     integer -- sum of all per-PID counters at end of run
+  "map_entries":           integer -- number of distinct PIDs in the map
+  "mean_read_latency_us":  float   -- mean time to iterate full map (microseconds)
+  "p50_read_latency_us":   float   -- 50th-percentile map-read latency (µs)
+  "p95_read_latency_us":   float   -- 95th-percentile map-read latency (µs)
+  "p99_read_latency_us":   float   -- 99th-percentile map-read latency (µs)
+  "stdev_read_latency_us": float   -- standard deviation of read latency (µs)
+  "min_read_latency_us":   float   -- minimum map-read latency (µs)
+  "max_read_latency_us":   float   -- maximum map-read latency (µs)
+  "duration_sec":          float   -- configured benchmark duration (seconds)
+}
+
+Realistic example output (Linux 5.15, busy system, 5-second run)
+-----------------------------------------------------------------
+{
+  "benchmark":             "bench_hash_map",
+  "transport":             "BPF_HASH",
+  "poll_count":            4892,
+  "total_events_read":     312445,
+  "map_entries":           87,
+  "mean_read_latency_us":  42.17,
+  "p50_read_latency_us":   38.5,
+  "p95_read_latency_us":   89.3,
+  "p99_read_latency_us":   143.2,
+  "stdev_read_latency_us": 21.44,
+  "min_read_latency_us":   18.1,
+  "max_read_latency_us":   1243.7,
+  "duration_sec":          5.0
+}
+
+Notes
+-----
+- poll_count may be less than duration_sec / interval_ms when individual
+  map iterations take longer than the interval (back-pressure).
+- mean_read_latency_us scales roughly linearly with map_entries: larger maps
+  (more unique PIDs) require more bpf_map_get_next_key() calls from userspace.
+- total_events_read reflects kernel activity during the run — on a busy system
+  with frequent context switches this number will be much higher.
+- BPF_HASH is optimised for write performance in the kernel; userspace reads
+  require a syscall per entry (bpf(BPF_MAP_GET_NEXT_KEY) + bpf(BPF_MAP_LOOKUP_ELEM)),
+  which is the dominant cost captured by mean_read_latency_us.

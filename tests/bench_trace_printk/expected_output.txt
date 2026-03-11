@@ -1,0 +1,55 @@
+Expected JSON schema and example output for bench_trace_printk.py
+==================================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":              string  -- always "bench_trace_printk"
+  "transport":              string  -- always "bpf_trace_printk"
+  "lines_received":         integer -- total trace_pipe lines captured
+  "lines_per_sec":          float   -- pipe read throughput (lines/second)
+  "mean_pipe_latency_ns":   float   -- mean kernel→userspace latency (ns)
+  "p50_pipe_latency_ns":    float   -- 50th-percentile pipe latency (ns)
+  "p95_pipe_latency_ns":    float   -- 95th-percentile pipe latency (ns)
+  "p99_pipe_latency_ns":    float   -- 99th-percentile pipe latency (ns)
+  "stdev_pipe_latency_ns":  float   -- standard deviation of pipe latency (ns)
+  "min_pipe_latency_ns":    float   -- minimum pipe latency (ns)
+  "max_pipe_latency_ns":    float   -- maximum pipe latency (ns)
+  "latency_samples":        integer -- number of lines with parseable timestamps
+  "elapsed_sec":            float   -- actual wall-clock duration of the run
+}
+
+Realistic example output (Linux 5.15, busy system, 5-second run)
+-----------------------------------------------------------------
+{
+  "benchmark":              "bench_trace_printk",
+  "transport":              "bpf_trace_printk",
+  "lines_received":         23412,
+  "lines_per_sec":          4682.4,
+  "mean_pipe_latency_ns":   128934.21,
+  "p50_pipe_latency_ns":    97832.0,
+  "p95_pipe_latency_ns":    312004.0,
+  "p99_pipe_latency_ns":    891203.0,
+  "stdev_pipe_latency_ns":  87432.11,
+  "min_pipe_latency_ns":    24103.0,
+  "max_pipe_latency_ns":    14302198.0,
+  "latency_samples":        23412,
+  "elapsed_sec":            5.0021
+}
+
+Notes
+-----
+- bpf_trace_printk is THROTTLED by the kernel to approximately 1 message per
+  5 µs per CPU (rate-limited via a per-CPU ratelimit). This makes it unsuitable
+  for high-frequency event capture and explains why lines_per_sec is far lower
+  than sched_switch frequency.
+- mean_pipe_latency_ns is typically 10x–100x higher than BPF_PERF_OUTPUT
+  because the trace_pipe delivery path involves the global ftrace ring buffer,
+  a file read from debugfs, and Python readline() buffering.
+- Latency measurements depend on clock alignment between bpf_ktime_get_ns()
+  (CLOCK_MONOTONIC) and time.monotonic_ns() — they should be directly
+  comparable but may show small offsets on NUMA systems.
+- The p99 and max values are expected to be very high (~ms range) due to the
+  shared global trace buffer and occasional pipe-read scheduling delays.
+- This benchmark intentionally represents the worst-case / highest-overhead
+  transport to provide a reference baseline.
