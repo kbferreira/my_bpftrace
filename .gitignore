@@ -1,0 +1,9 @@
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Benchmark result files (generated at runtime)
+tests/results/*.jsonl
+tests/results/summary_*.json
