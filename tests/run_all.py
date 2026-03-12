@@ -54,6 +54,21 @@ BENCHMARKS = [
         "script":    os.path.join(TESTS_DIR, "bench_trace_printk", "bench_trace_printk.py"),
         "transport": "bpf_trace_printk",
     },
+    {
+        "name":      "bench_payload_sweep",
+        "script":    os.path.join(TESTS_DIR, "bench_payload_sweep", "bench_payload_sweep.py"),
+        "transport": "BPF_PERF_OUTPUT+BPF_RINGBUF",
+    },
+    {
+        "name":      "bench_event_rate_sweep",
+        "script":    os.path.join(TESTS_DIR, "bench_event_rate_sweep", "bench_event_rate_sweep.py"),
+        "transport": "BPF_PERF_OUTPUT+BPF_RINGBUF",
+    },
+    {
+        "name":      "bench_map_size_sweep",
+        "script":    os.path.join(TESTS_DIR, "bench_map_size_sweep", "bench_map_size_sweep.py"),
+        "transport": "BPF_HASH+BPF_ARRAY",
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -102,6 +117,17 @@ def _fmt_latency(result: dict) -> str:
     """Extract a human-readable mean latency string from a result dict."""
     if result.get("skipped"):
         return "skipped"
+    # Sweep benchmarks use a nested transport_results structure.
+    if "transport_results" in result:
+        # Summarise the first transport's first data point, if available.
+        for transport_data in result["transport_results"].values():
+            if transport_data:
+                first = transport_data[0]
+                if "mean_ns" in first:
+                    return "see JSON (1st: %.0f ns)" % first["mean_ns"]
+                if "mean_iter_us" in first:
+                    return "see JSON (1st: %.2f µs)" % first["mean_iter_us"]
+        return "see JSON"
     # Latency benchmarks report in ns; poll benchmarks report in µs.
     if "mean_ns" in result:
         return "%.0f ns" % result["mean_ns"]
@@ -116,6 +142,16 @@ def _fmt_p99(result: dict) -> str:
     """Extract a human-readable P99 latency string from a result dict."""
     if result.get("skipped"):
         return "skipped"
+    # Sweep benchmarks use a nested transport_results structure.
+    if "transport_results" in result:
+        for transport_data in result["transport_results"].values():
+            if transport_data:
+                first = transport_data[0]
+                if "p99_ns" in first:
+                    return "see JSON (1st: %.0f ns)" % first["p99_ns"]
+                if "p99_iter_us" in first:
+                    return "see JSON (1st: %.2f µs)" % first["p99_iter_us"]
+        return "see JSON"
     if "p99_ns" in result:
         return "%.0f ns" % result["p99_ns"]
     if "p99_pipe_latency_ns" in result:
@@ -129,6 +165,16 @@ def _fmt_throughput(result: dict) -> str:
     """Extract a human-readable throughput string from a result dict."""
     if result.get("skipped"):
         return "skipped"
+    # Sweep benchmarks use a nested transport_results structure.
+    if "transport_results" in result:
+        for transport_data in result["transport_results"].values():
+            if transport_data:
+                first = transport_data[0]
+                if "events_per_sec" in first:
+                    return "see JSON (1st: %.0f ev/s)" % first["events_per_sec"]
+                if "bytes_per_us" in first:
+                    return "see JSON (1st: %.2f MB/s)" % first["bytes_per_us"]
+        return "see JSON"
     if "events_per_sec" in result:
         return "%.0f ev/s" % result["events_per_sec"]
     if "lines_per_sec" in result:
@@ -150,8 +196,16 @@ def run_benchmark(bench: dict, duration: int, events: int, output_dir: str) -> d
         "--output-dir", output_dir,
     ]
     # Latency benchmarks accept --events; others ignore it.
-    if bench["name"] in ("bench_perf_output", "bench_ringbuf"):
+    # bench_payload_sweep also accepts --events (events per data point).
+    if bench["name"] in ("bench_perf_output", "bench_ringbuf", "bench_payload_sweep"):
         cmd += ["--events", str(events)]
+    # Sweep benchmarks do not accept --duration; remove the flag and its value as a pair.
+    if bench["name"] in ("bench_payload_sweep", "bench_event_rate_sweep", "bench_map_size_sweep"):
+        try:
+            idx = cmd.index("--duration")
+            cmd = cmd[:idx] + cmd[idx + 2:]  # remove "--duration" and the following value
+        except ValueError:
+            pass  # --duration not present (should not happen, but be safe)
 
     print("\n[%s] Running: %s" % (bench["name"], " ".join(cmd)), file=sys.stderr)
     start = time.monotonic()

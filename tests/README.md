@@ -2,7 +2,7 @@
 
 This directory contains a comprehensive test suite that **quantifies the overhead of passing data from kernel space to userspace** using eBPF via [BCC (bcc-python)](https://github.com/iovisor/bcc).
 
-The suite benchmarks five common kernel-to-userspace transport mechanisms and produces structured, comparable metrics (latency, throughput, CPU overhead).
+The suite benchmarks five common kernel-to-userspace transport mechanisms and produces structured, comparable metrics (latency, throughput, CPU overhead). Three additional sweep benchmarks investigate how overhead scales with the **volume of data written per event**, the **event generation rate**, and the **number of entries in a BPF map**.
 
 ---
 
@@ -62,6 +62,9 @@ sudo python3 tests/bench_ringbuf/bench_ringbuf.py
 sudo python3 tests/bench_hash_map/bench_hash_map.py
 sudo python3 tests/bench_array_map/bench_array_map.py
 sudo python3 tests/bench_trace_printk/bench_trace_printk.py
+sudo python3 tests/bench_payload_sweep/bench_payload_sweep.py
+sudo python3 tests/bench_event_rate_sweep/bench_event_rate_sweep.py
+sudo python3 tests/bench_map_size_sweep/bench_map_size_sweep.py
 ```
 
 Each script emits a **single JSON object to stdout** on completion. Pass `--help` for available options.
@@ -137,6 +140,80 @@ A large gap between `p50_ns` and `p99_ns` usually means the perf ring buffer is 
 
 ---
 
+## Data Volume & Rate Sweep Benchmarks
+
+These three benchmarks extend the suite to investigate how overhead **scales with the amount of data written per event** and with the **event generation rate**.
+
+---
+
+### `bench_payload_sweep` — Payload Size vs. Latency
+
+**What it measures:** For `BPF_PERF_OUTPUT` and `BPF_RINGBUF`, how per-event kernel→userspace latency and throughput change as the event payload grows from 8 B to 4096 B.
+
+**How to run:**
+```bash
+sudo python3 tests/bench_payload_sweep/bench_payload_sweep.py
+sudo python3 tests/bench_payload_sweep/bench_payload_sweep.py --events 5000
+sudo python3 tests/bench_payload_sweep/bench_payload_sweep.py \
+    --sizes 8,64,512,4096 --output-dir /tmp/results
+```
+
+**Payload sizes swept (bytes):** `8, 32, 64, 128, 256, 512, 1024, 2048, 4096`
+
+**How to interpret results:**
+- `mean_ns` and `p99_ns` will increase with `payload_bytes` because larger structs require copying more data through the BPF-to-userspace path.
+- An **inflection point** where latency growth accelerates (typically at 512–1024 bytes) corresponds to cache-line boundary effects: small payloads fit in a few cache lines, while larger payloads spill across cache lines and incur more memory traffic.
+- `BPF_RINGBUF` is typically faster than `BPF_PERF_OUTPUT` at the same payload size, because its zero-copy design reserves space directly in the shared ring buffer rather than copying into per-CPU perf buffers.
+- `events_per_sec` will decrease as `payload_bytes` increases — this is the bandwidth cost made visible.
+
+---
+
+### `bench_event_rate_sweep` — Event Rate vs. Drop Rate & Latency
+
+**What it measures:** With a fixed 256-byte payload, how overhead (latency, drop rate) scales as the event generation rate is pushed from low (1,000 ev/s) to saturating (500,000 ev/s).
+
+**How to run:**
+```bash
+sudo python3 tests/bench_event_rate_sweep/bench_event_rate_sweep.py
+sudo python3 tests/bench_event_rate_sweep/bench_event_rate_sweep.py --window 5
+sudo python3 tests/bench_event_rate_sweep/bench_event_rate_sweep.py \
+    --rates 1000,10000,100000,500000 --output-dir /tmp/results
+```
+
+**Rate steps (events/sec):** `1000, 5000, 10000, 50000, 100000, 250000, 500000`
+
+**How to interpret results:**
+- At low rates, `drop_rate_pct` should be near 0 and `mean_ns` should match the baseline latency from `bench_perf_output`.
+- The **saturation point** is where `drop_rate_pct` starts rising steeply — this is the rate at which the Python polling loop can no longer keep pace with the kernel-side event submission rate.
+- `mean_ns` and `p99_ns` increase near the saturation point due to ring-buffer back-pressure: events wait in the buffer longer before the consumer drains them.
+- `BPF_RINGBUF` typically saturates at a higher rate than `BPF_PERF_OUTPUT` because its single shared buffer avoids per-CPU memory fragmentation.
+- For production use, keep the target rate well below the saturation point to maintain low `drop_rate_pct` and stable `p99_ns`.
+
+---
+
+### `bench_map_size_sweep` — Map Entry Count vs. Read Latency
+
+**What it measures:** For `BPF_HASH` and `BPF_ARRAY`, how the userspace map-read latency scales with the number of entries in the map (from 100 to 100,000 entries).
+
+**How to run:**
+```bash
+sudo python3 tests/bench_map_size_sweep/bench_map_size_sweep.py
+sudo python3 tests/bench_map_size_sweep/bench_map_size_sweep.py --iterations 200
+sudo python3 tests/bench_map_size_sweep/bench_map_size_sweep.py \
+    --sizes 100,1000,10000,100000 --output-dir /tmp/results
+```
+
+**Map entry counts swept:** `100, 500, 1000, 5000, 10000, 50000, 100000`
+
+**How to interpret results:**
+- `mean_iter_us` scales roughly **linearly** with `map_entries` for both map types, since each entry requires at least one `bpf()` syscall round-trip.
+- `BPF_ARRAY` is generally faster than `BPF_HASH` at the same entry count because array lookup uses a single `bpf(BPF_MAP_LOOKUP_ELEM)` call, while hash-map iteration requires `bpf(BPF_MAP_GET_NEXT_KEY)` + `bpf(BPF_MAP_LOOKUP_ELEM)` per entry.
+- A **cache-effect cliff** may appear around 5,000–50,000 entries where the map data no longer fits in the CPU's L3 cache, causing `mean_iter_us` to grow faster than linearly and `bytes_per_us` to drop noticeably.
+- `bytes_per_us` (effective read bandwidth in MB/s) provides a hardware-normalised view of efficiency. A declining trend with growing `map_entries` indicates that the per-entry syscall overhead is being amortised less efficiently.
+- No kernel eBPF program is loaded; maps are created and read entirely from userspace, isolating the userspace map-read cost from kernel-side write overhead.
+
+---
+
 ## Directory Structure
 
 ```
@@ -164,8 +241,20 @@ tests/
 │   ├── bench_array_map.py
 │   └── expected_output.txt
 │
-└── bench_trace_printk/
-    ├── bench_trace_printk.py
+├── bench_trace_printk/
+│   ├── bench_trace_printk.py
+│   └── expected_output.txt
+│
+├── bench_payload_sweep/
+│   ├── bench_payload_sweep.py
+│   └── expected_output.txt
+│
+├── bench_event_rate_sweep/
+│   ├── bench_event_rate_sweep.py
+│   └── expected_output.txt
+│
+└── bench_map_size_sweep/
+    ├── bench_map_size_sweep.py
     └── expected_output.txt
 ```
 
