@@ -1,0 +1,139 @@
+Expected JSON schema and example output for bench_map_size_sweep.py
+====================================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark": string  -- always "bench_map_size_sweep"
+  "transport_results": {
+    "BPF_HASH": [
+      {
+        "map_entries":          integer -- number of entries pre-populated in the map
+        "iterations":           integer -- number of full map iterations timed
+        "mean_iter_us":         float   -- mean time for a full map iteration (microseconds)
+        "p50_iter_us":          float   -- 50th-percentile iteration latency (µs)
+        "p95_iter_us":          float   -- 95th-percentile iteration latency (µs)
+        "p99_iter_us":          float   -- 99th-percentile iteration latency (µs)
+        "stdev_iter_us":        float   -- population standard deviation (µs)
+        "min_iter_us":          float   -- minimum observed iteration latency (µs)
+        "max_iter_us":          float   -- maximum observed iteration latency (µs)
+        "total_bytes_per_iter": integer -- total bytes transferred per iteration
+                                           (BPF_HASH: entries × 16 B; BPF_ARRAY: entries × 12 B)
+        "bytes_per_us":         float   -- effective read bandwidth (bytes/µs = MB/s)
+      },
+      ...  (one entry per map size)
+    ],
+    "BPF_ARRAY": [
+      -- same structure as BPF_HASH
+    ]
+  }
+}
+
+Realistic example output (Linux 5.15, Intel Core i7, 100 iterations)
+---------------------------------------------------------------------
+{
+  "benchmark": "bench_map_size_sweep",
+  "transport_results": {
+    "BPF_HASH": [
+      {
+        "map_entries": 100,
+        "iterations": 100,
+        "mean_iter_us": 42.3,
+        "p50_iter_us": 40.1,
+        "p95_iter_us": 68.2,
+        "p99_iter_us": 89.5,
+        "stdev_iter_us": 12.4,
+        "min_iter_us": 28.7,
+        "max_iter_us": 420.1,
+        "total_bytes_per_iter": 1600,
+        "bytes_per_us": 37.83
+      },
+      {
+        "map_entries": 1000,
+        "iterations": 100,
+        "mean_iter_us": 450.2,
+        "p50_iter_us": 432.0,
+        "p95_iter_us": 680.0,
+        "p99_iter_us": 870.0,
+        "stdev_iter_us": 98.6,
+        "min_iter_us": 310.0,
+        "max_iter_us": 3100.0,
+        "total_bytes_per_iter": 16000,
+        "bytes_per_us": 35.54
+      },
+      {
+        "map_entries": 10000,
+        "iterations": 100,
+        "mean_iter_us": 4800.5,
+        "p50_iter_us": 4650.0,
+        "p95_iter_us": 7200.0,
+        "p99_iter_us": 9400.0,
+        "stdev_iter_us": 980.2,
+        "min_iter_us": 3500.0,
+        "max_iter_us": 32000.0,
+        "total_bytes_per_iter": 160000,
+        "bytes_per_us": 33.33
+      },
+      {
+        "map_entries": 100000,
+        "iterations": 100,
+        "mean_iter_us": 58000.0,
+        "p50_iter_us": 56000.0,
+        "p95_iter_us": 82000.0,
+        "p99_iter_us": 104000.0,
+        "stdev_iter_us": 11000.0,
+        "min_iter_us": 42000.0,
+        "max_iter_us": 380000.0,
+        "total_bytes_per_iter": 1600000,
+        "bytes_per_us": 27.59
+      }
+    ],
+    "BPF_ARRAY": [
+      {
+        "map_entries": 100,
+        "iterations": 100,
+        "mean_iter_us": 28.1,
+        "p50_iter_us": 26.5,
+        "p95_iter_us": 44.2,
+        "p99_iter_us": 59.8,
+        "stdev_iter_us": 8.7,
+        "min_iter_us": 18.4,
+        "max_iter_us": 280.5,
+        "total_bytes_per_iter": 1200,
+        "bytes_per_us": 42.71
+      },
+      {
+        "map_entries": 100000,
+        "iterations": 100,
+        "mean_iter_us": 38500.0,
+        "p50_iter_us": 37200.0,
+        "p95_iter_us": 55000.0,
+        "p99_iter_us": 70000.0,
+        "stdev_iter_us": 7400.0,
+        "min_iter_us": 28000.0,
+        "max_iter_us": 260000.0,
+        "total_bytes_per_iter": 1200000,
+        "bytes_per_us": 31.17
+      }
+    ]
+  }
+}
+
+Notes
+-----
+- mean_iter_us scales roughly linearly with map_entries for both map types,
+  because each entry requires at least one bpf() syscall round-trip.
+- BPF_HASH iterates via bpf_map_get_next_key + bpf_map_lookup_elem (two
+  syscalls per entry); BPF_ARRAY uses bpf_map_lookup_elem only (one syscall
+  per entry), so BPF_ARRAY is generally faster at the same entry count.
+- A "cache-effect cliff" may appear around 5000–50000 entries where the map
+  data no longer fits in the CPU L3 cache, causing mean_iter_us to grow
+  faster than linearly and bytes_per_us to drop noticeably.
+- total_bytes_per_iter = entries × (key_size + value_size):
+    BPF_HASH:  entries × 16 B  (8 B key + 8 B value)
+    BPF_ARRAY: entries × 12 B  (4 B index + 8 B value)
+- bytes_per_us is the effective read bandwidth in MB/s
+  (1 bytes/µs = 1 MB/s).  Higher is better; a declining trend with growing
+  map_entries indicates increasing syscall amortisation overhead.
+- No kernel eBPF program is loaded; all BPF maps are created and read
+  entirely from userspace, isolating the userspace map-read cost.

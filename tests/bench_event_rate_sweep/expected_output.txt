@@ -1,0 +1,120 @@
+Expected JSON schema and example output for bench_event_rate_sweep.py
+======================================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":     string   -- always "bench_event_rate_sweep"
+  "payload_bytes": integer  -- always 256 (fixed payload size for this benchmark)
+  "transport_results": {
+    "BPF_PERF_OUTPUT": [
+      {
+        "target_rate_per_sec": integer -- target event generation rate (events/sec)
+        "received_events":     integer -- events successfully delivered to userspace
+        "dropped_events":      integer -- estimated events lost (not delivered)
+        "drop_rate_pct":       float   -- dropped_events / generated_events × 100
+        "mean_ns":             float   -- mean per-event kernel→userspace latency (ns)
+        "p99_ns":              float   -- 99th-percentile latency (nanoseconds)
+        "events_per_sec":      float   -- actual throughput (received/window_sec)
+        "window_sec":          float   -- actual measurement window duration (seconds)
+      },
+      ...  (one entry per rate step)
+    ],
+    "BPF_RINGBUF": [
+      -- same structure as BPF_PERF_OUTPUT, or:
+      {
+        "target_rate_per_sec": integer -- target rate
+        "skipped":             true    -- present on kernels < 5.8
+        "reason":              string  -- human-readable skip reason
+      }
+    ]
+  }
+}
+
+Realistic example output (Linux 5.15, Intel Core i7, lightly loaded)
+---------------------------------------------------------------------
+{
+  "benchmark": "bench_event_rate_sweep",
+  "payload_bytes": 256,
+  "transport_results": {
+    "BPF_PERF_OUTPUT": [
+      {
+        "target_rate_per_sec": 1000,
+        "received_events": 3000,
+        "dropped_events": 0,
+        "drop_rate_pct": 0.0,
+        "mean_ns": 4900.5,
+        "p99_ns": 12800.0,
+        "events_per_sec": 1000.0,
+        "window_sec": 3.0
+      },
+      {
+        "target_rate_per_sec": 10000,
+        "received_events": 29988,
+        "dropped_events": 12,
+        "drop_rate_pct": 0.04,
+        "mean_ns": 5100.2,
+        "p99_ns": 14100.0,
+        "events_per_sec": 9996.0,
+        "window_sec": 3.001
+      },
+      {
+        "target_rate_per_sec": 100000,
+        "received_events": 298200,
+        "dropped_events": 1800,
+        "drop_rate_pct": 0.6,
+        "mean_ns": 6800.7,
+        "p99_ns": 23400.0,
+        "events_per_sec": 99400.0,
+        "window_sec": 3.0
+      },
+      {
+        "target_rate_per_sec": 500000,
+        "received_events": 1050000,
+        "dropped_events": 450000,
+        "drop_rate_pct": 30.0,
+        "mean_ns": 9200.4,
+        "p99_ns": 42000.0,
+        "events_per_sec": 350000.0,
+        "window_sec": 3.0
+      }
+    ],
+    "BPF_RINGBUF": [
+      {
+        "target_rate_per_sec": 1000,
+        "received_events": 3000,
+        "dropped_events": 0,
+        "drop_rate_pct": 0.0,
+        "mean_ns": 3800.1,
+        "p99_ns": 9100.0,
+        "events_per_sec": 1000.0,
+        "window_sec": 3.0
+      },
+      {
+        "target_rate_per_sec": 500000,
+        "received_events": 1350000,
+        "dropped_events": 150000,
+        "drop_rate_pct": 10.0,
+        "mean_ns": 7400.3,
+        "p99_ns": 31000.0,
+        "events_per_sec": 450000.0,
+        "window_sec": 3.0
+      }
+    ]
+  }
+}
+
+Notes
+-----
+- drop_rate_pct is estimated. For BPF_PERF_OUTPUT, drops from a full ring
+  buffer are reported by the BCC perf_buffer_lost callback. Remaining
+  unaccounted events (generated - received - perf_lost) are also counted.
+  For BPF_RINGBUF, drops = max(0, generated - received).
+- At low rates (1000–10000 ev/s) drop_rate_pct should be near 0.
+  As the rate exceeds the consumer throughput (~100k–500k ev/s depending on
+  hardware) drop_rate_pct rises steeply — this is the saturation point.
+- mean_ns and p99_ns may increase at high rates due to ring-buffer
+  back-pressure and scheduling delays in the Python polling loop.
+- BPF_RINGBUF typically saturates at a higher rate than BPF_PERF_OUTPUT
+  because its single shared buffer avoids per-CPU fragmentation overhead.
+- On kernels < 5.8, all BPF_RINGBUF entries contain "skipped": true.

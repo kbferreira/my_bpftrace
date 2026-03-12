@@ -1,0 +1,125 @@
+Expected JSON schema and example output for bench_payload_sweep.py
+==================================================================
+
+JSON Schema (keys and types)
+-----------------------------
+{
+  "benchmark":        string  -- always "bench_payload_sweep"
+  "transport_results": {
+    "BPF_PERF_OUTPUT": [
+      {
+        "payload_bytes":   integer -- size of the event payload in bytes
+        "count":           integer -- number of valid latency samples collected
+        "mean_ns":         float   -- arithmetic mean end-to-end latency (nanoseconds)
+        "p50_ns":          float   -- 50th-percentile latency (nanoseconds)
+        "p95_ns":          float   -- 95th-percentile latency (nanoseconds)
+        "p99_ns":          float   -- 99th-percentile latency (nanoseconds)
+        "stdev_ns":        float   -- population standard deviation (nanoseconds)
+        "min_ns":          float   -- minimum observed latency (nanoseconds)
+        "max_ns":          float   -- maximum observed latency (nanoseconds)
+        "events_per_sec":  float   -- throughput: events delivered per second
+        "elapsed_sec":     float   -- total wall-clock time for this data point (seconds)
+      },
+      ...  (one entry per payload size)
+    ],
+    "BPF_RINGBUF": [
+      -- same structure as BPF_PERF_OUTPUT, or:
+      {
+        "payload_bytes": integer -- size of the event payload in bytes
+        "skipped":       true    -- present on kernels < 5.8
+        "reason":        string  -- human-readable skip reason
+      }
+    ]
+  }
+}
+
+Realistic example output (Linux 5.15, Intel Core i7, lightly loaded, 5000 events/point)
+----------------------------------------------------------------------------------------
+{
+  "benchmark": "bench_payload_sweep",
+  "transport_results": {
+    "BPF_PERF_OUTPUT": [
+      {
+        "payload_bytes": 8,
+        "count": 5000,
+        "mean_ns": 4210.5,
+        "p50_ns": 3980.0,
+        "p95_ns": 7800.0,
+        "p99_ns": 12400.0,
+        "stdev_ns": 2100.3,
+        "min_ns": 920.0,
+        "max_ns": 87300.0,
+        "events_per_sec": 203412.0,
+        "elapsed_sec": 0.0246
+      },
+      {
+        "payload_bytes": 64,
+        "count": 5000,
+        "mean_ns": 4580.2,
+        "p50_ns": 4310.0,
+        "p95_ns": 8100.0,
+        "p99_ns": 13200.0,
+        "stdev_ns": 2340.1,
+        "min_ns": 1020.0,
+        "max_ns": 91000.0,
+        "events_per_sec": 185700.0,
+        "elapsed_sec": 0.0269
+      },
+      {
+        "payload_bytes": 4096,
+        "count": 5000,
+        "mean_ns": 9800.7,
+        "p50_ns": 9200.0,
+        "p95_ns": 18100.0,
+        "p99_ns": 26400.0,
+        "stdev_ns": 4800.2,
+        "min_ns": 3100.0,
+        "max_ns": 210000.0,
+        "events_per_sec": 87430.0,
+        "elapsed_sec": 0.0572
+      }
+    ],
+    "BPF_RINGBUF": [
+      {
+        "payload_bytes": 8,
+        "count": 5000,
+        "mean_ns": 3100.1,
+        "p50_ns": 2900.0,
+        "p95_ns": 5800.0,
+        "p99_ns": 9200.0,
+        "stdev_ns": 1600.5,
+        "min_ns": 700.0,
+        "max_ns": 65000.0,
+        "events_per_sec": 278900.0,
+        "elapsed_sec": 0.0179
+      },
+      {
+        "payload_bytes": 4096,
+        "count": 5000,
+        "mean_ns": 6700.3,
+        "p50_ns": 6200.0,
+        "p95_ns": 12500.0,
+        "p99_ns": 19800.0,
+        "stdev_ns": 3200.7,
+        "min_ns": 2100.0,
+        "max_ns": 145000.0,
+        "events_per_sec": 127500.0,
+        "elapsed_sec": 0.0392
+      }
+    ]
+  }
+}
+
+Notes
+-----
+- Latency is measured from bpf_ktime_get_ns() in the kernel probe to
+  time.monotonic_ns() at the start of the Python callback (same methodology
+  as bench_perf_output.py and bench_ringbuf.py).
+- Expected trend: latency and elapsed_sec increase with payload_bytes because
+  the BPF-to-userspace copy path must transfer more data per event.
+- BPF_RINGBUF typically shows lower latency than BPF_PERF_OUTPUT at the same
+  payload size due to its zero-copy ring buffer design.
+- On kernels < 5.8, all BPF_RINGBUF entries will contain "skipped": true
+  instead of latency metrics.
+- The inflection point where latency growth accelerates (usually around
+  512–1024 bytes) corresponds to L1/L2 cache line boundary effects.
